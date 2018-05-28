@@ -1,0 +1,182 @@
+apply plugin: 'com.android.application'
+apply plugin: 'jacoco'
+apply plugin: 'kotlin-android'
+
+apply plugin: 'kotlin-allopen'
+apply plugin: 'androidx.navigation.safeargs'
+apply plugin: 'kotlin-kapt'
+
+allOpen {
+    // allows mocking for classes w/o directly opening them for release builds
+    annotation 'com.android.example.github.testing.OpenClass'
+}
+android {
+    compileSdkVersion build_versions.target_sdk
+    buildToolsVersion build_versions.build_tools
+    defaultConfig {
+        applicationId "com.ilives.ka"
+        minSdkVersion build_versions.min_sdk
+        targetSdkVersion build_versions.target_sdk
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes {
+        debug {
+            testCoverageEnabled !project.hasProperty('android.injected.invoked.from.ide')
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    dataBinding {
+        enabled = true
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    sourceSets {
+        androidTest.java.srcDirs += "src/test-common/java"
+        test.java.srcDirs += "src/test-common/java"
+    }
+    lintOptions {
+        lintConfig rootProject.file('lint.xml')
+    }
+}
+
+jacoco {
+    toolVersion = "0.7.4+"
+}
+
+dependencies {
+    // region ============ Support =============
+    implementation deps.support.app_compat
+    implementation deps.support.recyclerview
+    implementation deps.support.cardview
+    implementation deps.support.design
+    // endregion 
+
+    // region ============ Navigation =============
+    implementation deps.navigation.fragment_ktx
+    // endregion
+
+    // region ============ Room =============
+    implementation deps.room.runtime
+    // endregion
+
+    // region ============ Lifecycle =============
+    implementation deps.lifecycle.runtime
+    implementation deps.lifecycle.extensions
+    implementation deps.lifecycle.java8
+    // endregion
+
+    // region ============ Retrofit =============
+    implementation deps.retrofit.runtime
+    implementation deps.retrofit.gson
+    // endregion
+
+
+    // region ============ Glide =============
+    implementation deps.glide.runtime
+    // endregion
+
+    // region ============ Dagger =============
+    implementation deps.dagger.runtime
+    implementation deps.dagger.android
+    implementation deps.dagger.android_support
+    // endregion
+
+    // region ============ Constrain Layout =============
+    implementation deps.constraint_layout
+    // endregion
+
+    // region ============ Kotlin STD =============
+    implementation deps.kotlin.stdlib
+    // endregion
+
+    // region ============ Timber =============
+    implementation deps.timber
+    // endregion
+
+    // region ============ KAPT =============
+    kapt deps.dagger.android_support_compiler
+    kapt deps.dagger.compiler
+    kapt deps.room.compiler
+    kapt deps.lifecycle.compiler
+    // endregion
+
+    //region TODO ADDING OTHER LIB HERE!!!================
+    implementation "com.mikepenz:iconics-core:3.0.3@aar"
+    implementation "com.mikepenz:iconics-views:3.0.3@aar"
+    implementation 'com.mikepenz:material-design-iconic-typeface:2.2.0.4@aar'
+    implementation deps.others.sdp
+    //endregion TODO ADDING OTHER LIB HERE!!!=============
+
+    // region ============ TEST =============
+    testImplementation deps.junit
+    testImplementation deps.mock_web_server
+    testImplementation(deps.arch_core.testing, {
+        exclude group: 'com.android.support', module: 'support-compat'
+        exclude group: 'com.android.support', module: 'support-annotations'
+        exclude group: 'com.android.support', module: 'support-core-utils'
+    })
+    testImplementation deps.mockito.core
+
+    androidTestImplementation deps.navigation.testing_ktx
+    androidTestImplementation deps.support.app_compat
+    androidTestImplementation deps.support.recyclerview
+    androidTestImplementation deps.support.cardview
+    androidTestImplementation deps.support.design
+
+    androidTestImplementation(deps.espresso.core, {
+        exclude group: 'com.android.support', module: 'support-annotations'
+        exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    })
+    androidTestImplementation(deps.espresso.contrib, {
+        exclude group: 'com.android.support', module: 'support-annotations'
+        exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    })
+
+    androidTestImplementation(deps.arch_core.testing, {
+    })
+    androidTestImplementation deps.dexmaker
+    androidTestImplementation deps.mockito.core, { exclude group: 'net.bytebuddy' }
+    // endregion
+}
+
+task fullCoverageReport(type: JacocoReport) {
+    dependsOn 'createDebugCoverageReport'
+    dependsOn 'testDebugUnitTest'
+    reports {
+        xml.enabled = true
+        html.enabled = true
+    }
+
+    def fileFilter = ['**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*',
+                      '**/*Test*.*', 'android/**/*.*',
+                      '**/*_MembersInjector.class',
+                      '**/Dagger*Component.class',
+                      '**/Dagger*Component$Builder.class',
+                      '**/*_*Factory.class',
+                      '**/*ComponentImpl.class',
+                      '**/*SubComponentBuilder.class']
+    def debugTree = fileTree(dir: "${buildDir}/intermediates/classes/debug", excludes: fileFilter)
+    def mainSrc = "${project.projectDir}/src/main/java"
+
+    sourceDirectories = files([mainSrc])
+    classDirectories = files([debugTree])
+    executionData = fileTree(dir: "$buildDir", includes: [
+            "jacoco/testDebugUnitTest.exec",
+            "outputs/code-coverage/connected/*coverage.ec"
+    ])
+}
+
+// we need all open to run tests which  a we enable only for debug builds.
+project.tasks.whenTaskAdded {
+    if (it.name == "testReleaseUnitTest") {
+        it.enabled = false
+    }
+}
